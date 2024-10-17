@@ -4,35 +4,65 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"strings"
-	"time"
+	"sync"
+
+	"github.com/google/uuid"
 )
 
-const ADDRESS = "192.168.20.65:65500"
+type ConnectionEvent struct {
+	id      string
+	conn    net.Conn
+	command string
+}
 
 func main() {
-	connections := []net.Conn{}
-	fmt.Println("Starting server...")
-	l, err := net.Listen("tcp", ADDRESS)
+
+	conns := sync.Map{}
+	connsChannel := make(chan ConnectionEvent)
+
+	serverAddress := os.Args[len(os.Args)-1]
+	l, err := net.Listen("tcp", serverAddress+":0")
+	fmt.Println("Starting server... ", l.Addr().String())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
+	defer conns.Clear()
 	defer l.Close()
+
+	go manageConnections(&conns, connsChannel)
+
 	for {
 		c, err := l.Accept()
 		if err != nil {
 			fmt.Println(err)
+			continue
 		}
-		fmt.Println("New connection!")
-		connections = append(connections, c)
-		go readMessages(c)
-
+		go handleSession(c, connsChannel)
 	}
 }
 
-func readMessages(c net.Conn) {
+func manageConnections(conns *sync.Map, connsChannel chan ConnectionEvent) {
+	for {
+		r := <-connsChannel
+		if r.command == "/login" {
+			fmt.Println("[LOGIN] " + r.id)
+			conns.Store(r.id, r.conn)
+		}
+		if r.command == "/logout" {
+			fmt.Println("[LOGOUT] " + r.id)
+			tmpC, _ := conns.Load(r.id)
+			tmpC.(net.Conn).Close()
+			conns.Delete(r.id)
+		}
+	}
+}
+
+func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
+	isLoggedIn := false
+	connUUID := uuid.NewString()
 	defer c.Close()
 	reader := bufio.NewReader(c)
 	for {
@@ -42,16 +72,29 @@ func readMessages(c net.Conn) {
 			c.Close()
 			return
 		}
-		if strings.TrimSpace(string(netData)) == "STOP" {
-			fmt.Println("User logged out!")
-			c.Close()
+		if !isLoggedIn && strings.TrimSpace(string(netData)) == "/login" {
+			isLoggedIn = true
+			sendMessage(c, "[OK]")
+			connsChannel <- ConnectionEvent{
+				id:      connUUID,
+				command: "/login",
+				conn:    c,
+			}
+		}
+		if isLoggedIn && strings.TrimSpace(string(netData)) == "/logout" {
+			sendMessage(c, "[OK]")
+			connsChannel <- ConnectionEvent{
+				id:      connUUID,
+				command: "/logout",
+				conn:    c,
+			}
 			return
 		}
 
-		fmt.Print("-> ", string(netData))
-		t := time.Now()
-		myTime := t.Format(time.RFC3339) + "\n"
-		c.Write([]byte(myTime))
+		fmt.Print(connUUID+" -> ", string(netData))
 	}
+}
 
+func sendMessage(c net.Conn, message string) {
+	c.Write([]byte(message))
 }

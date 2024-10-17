@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 )
 
-const SERVER_ADDRESS = "192.168.20.65:65500"
-
-
 func main() {
-	c, err := net.Dial("tcp", SERVER_ADDRESS)
+	serverAddress := os.Args[len(os.Args)-1]
+	fmt.Println("Attempting connection to: ", serverAddress)
+	c, err := net.Dial("tcp", serverAddress)
 	defer c.Close()
 	if err != nil {
 		fmt.Println(err)
@@ -23,17 +21,10 @@ func main() {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print(">> ")
 		text, _ := reader.ReadString('\n')
-		_, err = c.Write([]byte(text + "\n"))
+		_, err = c.Write([]byte(text))
 		if err != nil {
-			fmt.Println("Server time out!")
-			c.Close()
-		}
-
-		message, _ := bufio.NewReader(c).ReadString('\n')
-		fmt.Print("->: " + message)
-		if strings.TrimSpace(string(text)) == "STOP" {
-			fmt.Println("TCP client exiting...")
 			return
 		}
+
 	}
 }
