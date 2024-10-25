@@ -1,10 +1,9 @@
-package main
+package server
 
 import (
 	"bufio"
 	"fmt"
 	"net"
-	"os"
 	"strings"
 	"sync"
 
@@ -17,18 +16,19 @@ type ConnectionEvent struct {
 	command string
 }
 
-func main() {
+const ServerStatusPrompt = "Number of active connections [%d]"
 
+func Server(serverAddress string) {
 	conns := sync.Map{}
 	connsChannel := make(chan ConnectionEvent)
-
-	serverAddress := os.Args[len(os.Args)-1]
 	l, err := net.Listen("tcp", serverAddress+":0")
-	fmt.Println("Starting server... ", l.Addr().String())
+
+	fmt.Println("Starting application as server in ", l.Addr().String(), "...")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
 	defer conns.Clear()
 	defer l.Close()
 
@@ -68,13 +68,13 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 	for {
 		netData, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("[ERROR] %s %s", connUUID, err)
 			c.Close()
 			return
 		}
 		if !isLoggedIn && strings.TrimSpace(string(netData)) == "/login" {
 			isLoggedIn = true
-			sendMessage(c, "[OK]")
+			sendMessage(c, connUUID)
 			connsChannel <- ConnectionEvent{
 				id:      connUUID,
 				command: "/login",
@@ -96,5 +96,5 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 }
 
 func sendMessage(c net.Conn, message string) {
-	c.Write([]byte(message))
+	c.Write([]byte(message + "\n"))
 }
