@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-
 	"os"
 	"strings"
+
+	globals "go-chat/config"
 )
 
 const UserPrompt = "[%s][%s] >> "
@@ -41,7 +42,7 @@ func Client(serverAddress string) {
 
 func login(conn net.Conn) string {
 	fmt.Print("Logging in... \n")
-	conn.Write([]byte("/login\n"))
+	conn.Write([]byte(globals.Commands.Login + "\n"))
 	reader := bufio.NewReader(conn)
 	msg, _ := reader.ReadString('\n')
 	fmt.Printf("Your Session Id: %s", msg)

@@ -2,12 +2,15 @@ package server
 
 import (
 	"bufio"
+
 	"fmt"
 	"net"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
+
+	"go-chat/config"
 )
 
 type ConnectionEvent struct {
@@ -47,7 +50,8 @@ func Server(serverAddress string) {
 func manageConnections(conns *sync.Map, connsChannel chan ConnectionEvent) {
 	for {
 		r := <-connsChannel
-		if r.command == "/login" {
+
+		if r.command == config.Commands.Login {
 			fmt.Println("[LOGIN] " + r.id)
 			conns.Store(r.id, r.conn)
 		}
@@ -56,6 +60,16 @@ func manageConnections(conns *sync.Map, connsChannel chan ConnectionEvent) {
 			tmpC, _ := conns.Load(r.id)
 			tmpC.(net.Conn).Close()
 			conns.Delete(r.id)
+		}
+		if r.command == "/aborted" {
+			fmt.Println("[DISCONNECTED] " + r.id)
+			tmpC, _ := conns.Load(r.id)
+			tmpC.(net.Conn).Close()
+			conns.Delete(r.id)
+		}
+		if r.command == config.Commands.Subscribe {
+			fmt.Println("[SUBSCRIBE][<TOPIC>] " + r.id)
+			conns.Store(r.id, r.conn)
 		}
 	}
 }
@@ -68,8 +82,11 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 	for {
 		netData, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Printf("[ERROR] %s %s", connUUID, err)
-			c.Close()
+			connsChannel <- ConnectionEvent{
+				id:      connUUID,
+				command: "/aborted",
+				conn:    c,
+			}
 			return
 		}
 		if !isLoggedIn && strings.TrimSpace(string(netData)) == "/login" {
