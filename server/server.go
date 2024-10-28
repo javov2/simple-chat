@@ -13,10 +13,16 @@ import (
 	"go-chat/config"
 )
 
+const CLIENT_MAX_IDLE_TIME = 4 * 60 * 1000000000
+
 type ConnectionEvent struct {
-	id      string
-	conn    net.Conn
-	command string
+	connection Connection
+	command    string
+}
+
+type Connection struct {
+	id   string
+	conn net.Conn
 }
 
 const ServerStatusPrompt = "Number of active connections [%d]"
@@ -50,60 +56,59 @@ func Server(serverAddress string) {
 func manageConnections(conns *sync.Map, connsChannel chan ConnectionEvent) {
 	for {
 		r := <-connsChannel
+		command := r.command
+		connection := r.connection.conn
+		connectionId := r.connection.id
 
-		if r.command == config.Commands.Login {
-			fmt.Println("[LOGIN] " + r.id)
-			conns.Store(r.id, r.conn)
-		}
-		if r.command == "/logout" {
-			fmt.Println("[LOGOUT] " + r.id)
-			tmpC, _ := conns.Load(r.id)
+		switch command {
+		case config.Commands.Login:
+			fmt.Println("[LOGIN] " + connectionId)
+			conns.Store(connectionId, connection)
+		case config.Commands.Logout:
+			fmt.Println("[LOGOUT] " + connectionId)
+			tmpC, _ := conns.Load(connectionId)
 			tmpC.(net.Conn).Close()
-			conns.Delete(r.id)
-		}
-		if r.command == "/aborted" {
-			fmt.Println("[DISCONNECTED] " + r.id)
-			tmpC, _ := conns.Load(r.id)
+			conns.Delete(connectionId)
+		case config.Commands.SysDisconnect:
+			fmt.Println("[DISCONNECTED] " + connectionId)
+			tmpC, _ := conns.Load(connectionId)
 			tmpC.(net.Conn).Close()
-			conns.Delete(r.id)
+			conns.Delete(connectionId)
+		case config.Commands.Subscribe:
+			fmt.Println("[SUBSCRIBE][<TOPIC>] " + connectionId)
+			conns.Store(connectionId, connectionId)
 		}
-		if r.command == config.Commands.Subscribe {
-			fmt.Println("[SUBSCRIBE][<TOPIC>] " + r.id)
-			conns.Store(r.id, r.conn)
-		}
+
 	}
 }
 
 func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 	isLoggedIn := false
 	connUUID := uuid.NewString()
-	defer c.Close()
+	connection := Connection{id: connUUID, conn: c}
 	reader := bufio.NewReader(c)
 	for {
 		netData, err := reader.ReadString('\n')
 		if err != nil {
 			connsChannel <- ConnectionEvent{
-				id:      connUUID,
-				command: "/aborted",
-				conn:    c,
+				command:    config.Commands.SysDisconnect,
+				connection: connection,
 			}
 			return
 		}
-		if !isLoggedIn && strings.TrimSpace(string(netData)) == "/login" {
+		if !isLoggedIn && strings.TrimSpace(string(netData)) == config.Commands.Login {
 			isLoggedIn = true
 			sendMessage(c, connUUID)
 			connsChannel <- ConnectionEvent{
-				id:      connUUID,
-				command: "/login",
-				conn:    c,
+				command:    config.Commands.Login,
+				connection: connection,
 			}
 		}
-		if isLoggedIn && strings.TrimSpace(string(netData)) == "/logout" {
+		if isLoggedIn && strings.TrimSpace(string(netData)) == config.Commands.Logout {
 			sendMessage(c, "[OK]")
 			connsChannel <- ConnectionEvent{
-				id:      connUUID,
-				command: "/logout",
-				conn:    c,
+				command:    config.Commands.Logout,
+				connection: connection,
 			}
 			return
 		}
