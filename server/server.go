@@ -2,6 +2,8 @@ package server
 
 import (
 	"bufio"
+	"strconv"
+	"time"
 
 	"fmt"
 	"net"
@@ -29,14 +31,15 @@ const ServerStatusPrompt = "Number of active connections [%d]"
 
 func Server(serverAddress string) {
 	conns := sync.Map{}
+
 	connsChannel := make(chan ConnectionEvent)
 	l, err := net.Listen("tcp", serverAddress+":0")
 
-	fmt.Println("Starting application as server in ", l.Addr().String(), "...")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	fmt.Println("Starting application as server in ", l.Addr().String(), "...")
 
 	defer conns.Clear()
 	defer l.Close()
@@ -87,6 +90,19 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 	connUUID := uuid.NewString()
 	connection := Connection{id: connUUID, conn: c}
 	reader := bufio.NewReader(c)
+
+	go func() {
+		for {
+			pause := time.Duration(1000 * time.Millisecond) // nolint:gosec
+			time.Sleep(pause)
+
+			// Send the Bubble Tea program a message from outside the
+			// tea.Program. This will block until it is ready to receive
+			// messages.
+			sendMessage(c, strconv.FormatInt(time.Now().Unix(), 10))
+		}
+	}()
+
 	for {
 		netData, err := reader.ReadString('\n')
 		if err != nil {
@@ -114,6 +130,7 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 		}
 
 		fmt.Print(connUUID+" -> ", string(netData))
+		sendMessage(c, string(netData))
 	}
 }
 
