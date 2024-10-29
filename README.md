@@ -20,5 +20,9 @@ go run main.go --mode server --ipAddress <your_ip_address>
 
 `sh 
 go run main.go --mode client --ipAddress <server_ip_address:server_port> 
+`
+
+`sh 
 go run main.go --ipAddress <server_ip_address:server_port> 
 `
+

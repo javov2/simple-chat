@@ -90,15 +90,11 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 	connUUID := uuid.NewString()
 	connection := Connection{id: connUUID, conn: c}
 	reader := bufio.NewReader(c)
-
+    // tmp: sending messages to test client view area
 	go func() {
 		for {
-			pause := time.Duration(1000 * time.Millisecond) // nolint:gosec
+			pause := time.Duration(1000 * time.Millisecond)
 			time.Sleep(pause)
-
-			// Send the Bubble Tea program a message from outside the
-			// tea.Program. This will block until it is ready to receive
-			// messages.
 			sendMessage(c, strconv.FormatInt(time.Now().Unix(), 10))
 		}
 	}()
@@ -130,10 +126,10 @@ func handleSession(c net.Conn, connsChannel chan ConnectionEvent) {
 		}
 
 		fmt.Print(connUUID+" -> ", string(netData))
-		sendMessage(c, string(netData))
+		//sendMessage(c, string(netData))
 	}
 }
 
 func sendMessage(c net.Conn, message string) {
-	c.Write([]byte(message + "\n"))
+	c.Write([]byte("Server: "+ message + "\n"))
 }

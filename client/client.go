@@ -31,6 +31,7 @@ type uiModel struct {
 }
 
 func (m uiModel) Init() tea.Cmd {
+	tea.SetWindowTitle("Bubble Tea Example")
 	return textarea.Blink
 }
 
@@ -93,7 +94,7 @@ func initChatView(conn net.Conn, sessionId string) uiModel {
 	ta.SetHeight(1)
 
 	// Remove cursor line styling
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	//ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 
 	ta.ShowLineNumbers = false
 
